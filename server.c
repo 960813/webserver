@@ -12,7 +12,7 @@
 
 static const int backlog = 32;
 
-static const size_t initial_buf_capacity = 8;
+static const size_t initial_buf_capacity = 2048;
 
 static bool server_stopped = false;
 
@@ -62,7 +62,10 @@ static void *accepted_socket_handler(void *arg)
 	printf("[%d] %s\n", data.accepted_socket_fd, buf);
 
 	char *http_response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, world!";
-	send(data.accepted_socket_fd, http_response, strlen(http_response), 0);
+	int send_result =send(data.accepted_socket_fd, http_response, strlen(http_response), 0);
+	if (send_result == -1) {
+		perror("send");
+	}
 	
 	close(data.accepted_socket_fd);
 	return NULL;
