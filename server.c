@@ -45,41 +45,41 @@ char* recv_str_until(struct RecvBuffer* recv_buffer, char c)
     int str_buf_len = 0;
 
     while (1) {
-        if (recv_buffer - > pos == recv_buffer - > len) {
-            recv_buffer - > pos = 0;
-            recv_buffer - > len = recv(recv_buffer - > fd, recv_buffer - > buf, recv_buffer - > cap, 0);
+        if (recv_buffer->pos == recv_buffer->len) {
+            recv_buffer->pos = 0;
+            recv_buffer->len = recv(recv_buffer->fd, recv_buffer->buf, recv_buffer->cap, 0);
 
-            if (recv_buffer - > len == -1) {
+            if (recv_buffer->len == -1) {
                 perror("recv");
                 exit(100);
             }
         }
 
         int index = -1;
-        for (int i = recv_buffer - > pos; i<recv_buffer -> len; ++i) {
-            if (recv_buffer - > buf[i] == c) {
+        for (int i = recv_buffer->pos; i<recv_buffer -> len; ++i) {
+            if (recv_buffer->buf[i] == c) {
                 index = i;
                 break;
             }
         }
         if (index == -1) {
-            while (str_buf_len + recv_buffer - > len > str_buf_capacity) {
+            while (str_buf_len + recv_buffer->len > str_buf_capacity) {
                 str_buf_capacity *= 2;
                 str_buf = realloc(str_buf, str_buf_capacity);
             }
-            memcpy(str_buf + str_buf_len, recv_buffer - > buf, recv_buffer - > cap);
-            str_buf_len += recv_buffer - > len;
-            recv_buffer - > pos = recv_buffer - > len;
+            memcpy(str_buf + str_buf_len, recv_buffer->buf, recv_buffer->cap);
+            str_buf_len += recv_buffer->len;
+            recv_buffer->pos = recv_buffer->len;
         }
         else {
             while (str_buf_len + index + 1 > str_buf_capacity) {
                 str_buf_capacity *= 2;
                 str_buf = realloc(str_buf, str_buf_capacity);
             }
-            memcpy(str_buf + str_buf_len, recv_buffer - > buf + recv_buffer - > pos, index + 1 - recv_buffer - > pos);
-            str_buf[str_buf_len + index + 1 - recv_buffer - > pos] = '\0';
+            memcpy(str_buf + str_buf_len, recv_buffer->buf + recv_buffer->pos, index + 1 - recv_buffer->pos);
+            str_buf[str_buf_len + index + 1 - recv_buffer->pos] = '\0';
 
-            recv_buffer - > pos = index + 1;
+            recv_buffer->pos = index + 1;
             break;
         }
     }
@@ -211,7 +211,7 @@ int main(int argc, char** argv)
             accepted_socket_addr.sin_port);
 
         struct SocketHandlerData* data = malloc(sizeof(struct SocketHandlerData));
-        data - > fd = accepted_socket_fd;
+        data->fd = accepted_socket_fd;
 
         pthread_t thread;
         int pthread_result = pthread_create(&thread, NULL, accepted_socket_handler, data);
