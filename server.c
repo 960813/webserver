@@ -9,15 +9,25 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
+
+void log_debug(const char*format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+	vprintf(format, ap);
+	va_end(ap);
+}
 
 static const int backlog = 32;
 
 static const size_t initial_buf_capacity = 2048;
+static const size_t recv_buf_capacity = 2048;
 
 static bool server_stopped = false;
 
 struct socket_handler_data {
-	int accepted_socket_fd;
+	int fd;
 };
 
 static void *accepted_socket_handler(void *arg)
@@ -25,48 +35,63 @@ static void *accepted_socket_handler(void *arg)
 	struct socket_handler_data data = *((struct socket_handler_data *)arg);
 	free(arg);
 
-	int buf_capacity = initial_buf_capacity;
-	char *buf = malloc(buf_capacity);
-	int buf_length = 0;
+	int fd = data.fd;
 
-	int line_feed_index = -1;
+	log_debug("[%d] thread started: fn:accepted_socket_handler\n", fd);
+
+	char recv_buf[recv_buf_capacity];
+
+	int line_buf_capacity = initial_buf_capacity;
+	char *line_buf = malloc(line_buf_capacity);
+	int line_buf_len = 0;
+
 	while (1){
-		int received_length = recv(data.accepted_socket_fd, buf + buf_length, buf_capacity - buf_length, 0);
+		int recv_len = recv(fd, recv_buf, recv_buf_capacity, 0);
 
-		if (received_length == -1) {
+		if (recv_len == -1) {
 			perror("recv");
 			exit(100);
 		}
 
-		for(int i = buf_length; i < buf_length + received_length; ++i) {
-			if (buf[i] == '\n') {
+		int line_feed_index = -1;
+		for(int i = 0; i < recv_len; ++i) {
+			if (recv_buf[i] == '\n') {
 				line_feed_index = i;
 				break;
 			}
 		}
 
 		if (line_feed_index != -1) {
+			while (line_buf_len + recv_len > line_buf_capacity) {
+				line_buf_capacity *= 2;
+				line_buf = realloc(line_buf, line_buf_capacity);
+			}
+			memcpy(line_buf + line_buf_len, recv_buf, recv_buf_capacity);
+			line_buf_len += recv_len;
 			break;
-		}
-
-		buf_length += received_length;
-		if (buf_length == buf_capacity) {
-			buf_capacity *= 2;
-			buf = realloc(buf, buf_capacity);
+		} else {
+			while (line_buf_len + line_feed_index + 1> line_buf_capacity) {
+				line_buf_capacity *= 2;
+				line_buf = realloc(line_buf, line_buf_capacity);
+			}
+			memcpy(line_buf + line_buf_len, recv_buf, line_feed_index + 1);
+			line_buf[line_buf_len + line_feed_index + 1] = '\0';
+			line_buf_len += line_feed_index + 1;
 		}
 	}
 
 	// CR position
-	buf[line_feed_index - 1] = '\0';
+	line_buf[line_buf_len - 1] = '\0';
 
+	log_debug("[%d] first line: %s\n", fd, line_buf);
 	char *method;
 	char *request_target;
 	char *http_version;
 
-	char *first_space_ptr = strchr(buf, ' ');
+	char *first_space_ptr = strchr(line_buf, ' ');
 	*first_space_ptr = '\0';
 
-	method = strdup(buf);
+	method = strdup(line_buf);
 
 	char *second_space_ptr = strchr(first_space_ptr + 1, ' ');
 	*second_space_ptr = '\0';
@@ -75,17 +100,15 @@ static void *accepted_socket_handler(void *arg)
 
 	http_version = strdup(second_space_ptr + 1);
 
-	printf("[%d]\n\tMethod: %s\n\tRequest target: %s\n\tHTTP version: %s\n", data.accepted_socket_fd, method, request_target, http_version);
-
-	printf("[%d] %s\n", data.accepted_socket_fd, buf);
+	log_debug("[%d] Request line\n\tMethod: %s\n\tRequest target: %s\n\tHTTP version: %s\n", data.fd, method, request_target, http_version);
 
 	char *http_response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, world!";
-	int send_result =send(data.accepted_socket_fd, http_response, strlen(http_response), 0);
+	int send_result =send(data.fd, http_response, strlen(http_response), 0);
 	if (send_result == -1) {
 		perror("send");
 	}
 	
-	close(data.accepted_socket_fd);
+	close(data.fd);
 	return NULL;
 }
 
@@ -136,10 +159,13 @@ int main(int argc, char **argv)
 			exit(4);
 		}
 
-		printf("accepted: return=%d\n", accepted_socket_fd);
+		log_debug("accepted: fd=%d, addr=%s:%d\n",
+				accepted_socket_fd,
+				inet_ntoa(accepted_socket_addr.sin_addr),
+				accepted_socket_addr.sin_port);
 
 		struct socket_handler_data *data = malloc(sizeof(struct socket_handler_data));
-		data->accepted_socket_fd = accepted_socket_fd;
+		data->fd = accepted_socket_fd;
 
 		pthread_t thread;
 		int pthread_result = pthread_create(&thread, NULL, accepted_socket_handler, data);
