@@ -77,9 +77,8 @@ char *recv_str_until(struct RecvBuffer *recv_buffer, char c)
                          }
                         memcpy(str_buf + str_buf_len, recv_buffer->buf + recv_buffer->pos, index + 1 - recv_buffer->pos);
                         str_buf[str_buf_len + index + 1 - recv_buffer->pos] = '\0';
-                        str_buf_len += index + 1;
 
-                        recv_buffer->pos = 0;
+			recv_buffer->pos = index + 1;
 			break;
                  }
         }
@@ -91,6 +90,18 @@ char *recv_line(struct RecvBuffer *recv_buffer)
 	return recv_str_until(recv_buffer, '\n');
 }
 
+void remove_crlf(char *str)
+{
+    int len = strlen(str);
+
+    if (str[len - 1] == '\n') {
+        str[len - 1] = '\0';
+    }
+
+    if (str[len - 2] == '\r') {
+        str[len - 2] = '\0';
+    }
+}
 
 static void *accepted_socket_handler(void *arg)
 {
@@ -110,10 +121,7 @@ static void *accepted_socket_handler(void *arg)
 	};
 
 	char *request_line = recv_line(&recv_buffer);
-	int request_line_len = strlen(request_line);
-
-	// CR position
-	request_line[request_line_len - 1] = '\0';
+	remove_crlf(request_line);
 
 	log_debug("[%d] first line: %s\n", fd, request_line);
 
@@ -133,10 +141,11 @@ static void *accepted_socket_handler(void *arg)
 
 	http_version = strdup(second_space_ptr + 1);
 
-	// log_debug("[%d] Request line\n\tMethod: %s\n\tRequest target: %s\n\tHTTP version: %s\n", data.fd, method, request_target, http_version);
+	log_debug("[%d] Request line\n\tMethod: %s\n\tRequest target: %s\n\tHTTP version: %s\n", data.fd, method, request_target, http_version);
 
 
 	char *first_header = recv_line(&recv_buffer);
+	remove_crlf(first_header);
 	log_debug("[%d] first header: %s\n", fd, first_header);
 
 	char *http_response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, world!";
