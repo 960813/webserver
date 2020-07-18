@@ -4,3 +4,5 @@ Clone by [https://github.com/gaejotbab/webserver](https://github.com/gaejotbab/w
 
 ## Streaming
 1. [https://www.youtube.com/watch?v=a_yGqxb4_2I](https://www.youtube.com/watch?v=a_yGqxb4_2I)
+
+2. [https://www.youtube.com/watch?v=K6RTrp1cp98](https://www.youtube.com/watch?v=K6RTrp1cp98)
